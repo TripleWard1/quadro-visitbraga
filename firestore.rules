@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // O monitor só lê.
+    match /pessoas/{doc} {
+      allow read: if true;
+      allow write: if escrever();
+    }
+
+    match /tarefas/{doc} {
+      allow read: if true;
+      allow write: if escrever();
+    }
+
+    // Escrever exige sessão Google com conta do município.
+    function escrever() {
+      return request.auth != null
+        && request.auth.token.email.matches('.*@cm-braga[.]pt');
+    }
+  }
+}
