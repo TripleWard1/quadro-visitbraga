@@ -30,22 +30,56 @@ O `npm install` corre sozinho.
 
 ```
 app/
-  page.tsx            o quadro
-  gestao/page.tsx     onde se muda a fase das tarefas
+  page.tsx            o quadro de parede
+  gestao/page.tsx     onde se regista trabalho e se muda a fase
   globals.css         toda a folha de estilo
 components/
   Quadro.tsx          rotação de ecrãs, relógio, atalhos
   CartaoPessoa.tsx    o cartão de cada pessoa
-  Carril.tsx          as cinco paragens da fase
+  Carril.tsx          as quatro paragens da fase
   Fluxo.tsx           ecrã de colunas por fase
   ListaLateral.tsx    "Em atraso" e "Entra a seguir"
-  Cabecalho.tsx  Legenda.tsx  Rodape.tsx
+  FormularioTrabalho.tsx   registar trabalho
+  PainelTarefas.tsx   as tarefas da divisão (só o chefe)
+  Entrada.tsx  MudarPalavra.tsx  Cabecalho.tsx  Legenda.tsx  Rodape.tsx
 lib/
   config.ts           logótipo, tempos de rotação, cartões por ecrã
-  fases.ts            as cinco fases — a espinha do quadro
-  tipos.ts  datas.ts  dadosDemo.ts
-  firebase.ts  useTarefas.ts
+  fases.ts            as quatro fases — a espinha do quadro
+  dadosDemo.ts        a equipa
+  tipos.ts  datas.ts  tarefas.ts  erros.ts
+  firebase.ts  firebaseConfig.ts  useQuadro.ts
+firestore.rules       quem pode escrever o quê
 ```
+
+## Vocabulário
+
+Três palavras, e vale a pena não as trocar:
+
+- **Tarefa** — uma frente de trabalho da divisão (Green Destinations, o plano
+  estratégico, o licenciamento). Só o chefe de divisão as escreve.
+- **Trabalho** — o que uma pessoa concreta está a fazer dentro de uma tarefa,
+  ou fora dela. É isto que aparece no monitor.
+- **Fase** — em que ponto está esse trabalho: por fazer, em curso, em
+  aprovação, concluída.
+
+## Modelo de dados
+
+**`pessoas`** — id do documento = email. `nome`, `iniciais`, `papel`
+(`chefe` ou `tecnico`), `ativo`, `ordem`. A equipa está em `lib/dadosDemo.ts`
+e é essa lista que o monitor desenha, tenha a pessoa entrado ou não; o
+Firestore só acrescenta o que souber de cada uma.
+
+**`tarefas`** — `nome`, `ativo`, `ordem`. Qualquer pessoa da divisão cria
+uma; arquivar e renomear é do chefe, para a lista não andar aos saltos.
+
+**`trabalhos`** — `titulo`, `tarefa` (id, pode ficar vazio), `responsavel`
+(email), `fase`, `bloqueada`, `motivo`, `prazo` (timestamp **ou `null`** para
+trabalho contínuo), `atualizadoEm`.
+
+Fase e bloqueio são campos separados de propósito: um trabalho pode estar *em
+aprovação* **e** parado à espera de terceiros. O carril mostra as duas coisas
+ao mesmo tempo — é o que evita confundir "anda devagar" com "está à espera da
+Braval".
 
 ## O que mexer primeiro
 
@@ -89,69 +123,62 @@ Falta fazer três coisas na consola do Firebase, uma vez:
 
 ### Entrar para alterar o quadro
 
-O município usa Microsoft 365, por isso não há entrada com Google — os emails
-`@cm-braga.pt` não são contas Google. A entrada é por **link enviado ao email**:
-escreve-se o endereço, chega um link ao Outlook, carrega-se, entrou. A prova de
-que alguém é da casa é conseguir abrir esse email.
+O quadro (`/`) não pede sessão nenhuma — é só leitura, é para ficar no monitor.
+Quem quiser mexer vai a **`/gestao`** e entra com o email de trabalho.
 
-O quadro em si (`/`) não pede sessão nenhuma — é só de leitura, é para ficar no
-monitor. Quem quiser mexer vai a **`/gestao`**.
+Na primeira vez a palavra-passe é **123456**. A conta cria-se sozinha nesse
+momento — não é preciso registar catorze pessoas à mão — e o ecrã seguinte
+obriga a escolher outra palavra-passe antes de deixar chegar ao quadro. Depois
+disso, quem quiser mudá-la outra vez tem o botão *palavra-passe* no topo da
+página. Tudo dentro da app: nenhum email é enviado a ninguém.
 
-Há palavra-passe como alternativa, para o caso de os filtros de correio comerem
-o link. Nesse caso crias a conta em Firebase → Authentication → *Add user*, com
-o email e uma palavra-passe temporária, e a pessoa muda-a depois pelo
-"esqueci-me da palavra-passe".
+A palavra-passe inicial está em `lib/config.ts`, em `PALAVRA_PASSE_INICIAL`.
 
-**Na consola do Firebase, uma vez:**
+**Na consola do Firebase, um passo só:**
+Authentication → **Sign-in method** → ativar **Email/Password** (só o primeiro
+interruptor; o *Email link* fica desligado). É isto — a entrada por
+palavra-passe não depende de domínios autorizados, por isso funciona no
+StackBlitz, no localhost e na Vercel sem mais configuração.
 
-1. Authentication → **Sign-in method** → ativar *Email/Password* e, dentro dele,
-   ligar também o interruptor **Email link (passwordless sign-in)**.
-2. Authentication → **Settings → Authorized domains** → acrescentar o domínio da
-   Vercel. O `localhost` já lá está de origem. Sem isto aparece
-   `auth/unauthorized-domain` e nada funciona.
-3. Authentication → **Templates** → o email de entrada pode ser passado a
-   português, para não chegar às pessoas um texto em inglês da Google.
+As pessoas são reconhecidas pelo **email**, que está em `lib/dadosDemo.ts`.
+Segui o padrão `nome.apelido@cm-braga.pt` — confirma-os, porque um email
+errado faz a pessoa entrar e ver "email por reconhecer".
 
-O link tem de ser aberto no mesmo browser onde foi pedido — é lá que fica
-guardado o email para confirmar. Se for aberto noutro sítio, a página pergunta o
-endereço antes de entrar.
+### Quem pode fazer o quê
 
-### Como cada pessoa usa a página
+| | Técnico | Chefe de divisão |
+|---|---|---|
+| Criar trabalho para si | sim | sim |
+| Avançar, recuar, marcar parada, apagar o **seu** trabalho | sim | sim |
+| Mexer no trabalho dos outros | não | sim |
+| Atribuir trabalho a outra pessoa | não | sim |
+| Criar uma tarefa da divisão | sim | sim |
+| Arquivar ou renomear tarefas | não | sim |
 
-1. **Acrescentar trabalho** — o que é preciso fazer, o projeto e o prazo. O
-   campo do projeto sugere os que já existem, para não aparecerem no quadro
-   três grafias do mesmo. A tarefa nasce na fase *Aceite*.
-2. **Avançar a fase** — um botão que diz para onde vai a seguir ("avançar para
-   Em revisão"). Há também `← recuar` e um seletor para saltar direto a uma
-   fase qualquer.
-3. **Marcar parada** quando se está à espera de terceiros: pede o motivo, e o
-   monitor mostra-o a vermelho com o carril partido.
+Cada pessoa responde pelas suas atribuições: vê o trabalho da divisão toda no
+separador *A divisão*, mas nas tarefas de outros os botões não aparecem.
 
-Por omissão vê-se só o trabalho próprio; há um botão para ver o da divisão toda,
-e qualquer pessoa pode criar uma tarefa para outra — útil para quem distribui
-serviço.
+Isto está garantido nos dois sítios que interessam. Na interface, para não
+haver botões que enganam. E em `firestore.rules`, que é onde de facto se
+decide — o email do chefe de divisão está lá escrito por extenso, porque é a
+única coisa que não pode viver na base de dados: se vivesse, qualquer pessoa
+se promovia a si própria ao criar o seu registo. **Se o chefe de divisão
+mudar, muda-se em `firestore.rules` e em `lib/dadosDemo.ts`.**
 
-A equipa está em `lib/dadosDemo.ts`: catorze pessoas, sete por ecrã, dois ecrãs.
-Quem entrar e não se encontrar na lista tem um botão que a escreve no Firestore.
-Para acrescentar ou tirar alguém depois disso, edita-se a coleção `pessoas`
-direto na consola — pôr `ativo: false` esconde do quadro sem apagar o histórico.
+### Como se usa a página
 
-### Coleções
+O topo mostra três números — tarefas tuas, a fechar hoje, em atraso — para se
+perceber a situação sem ler nada.
 
-**`pessoas`** — `nome`, `iniciais` (2 letras), `ativo` (boolean), `ordem` (number).
-O id do documento é o que as tarefas referem em `responsavel`.
+Ao criar trabalho, o prazo tem atalhos (*Hoje*, *Amanhã*, *Esta sexta*, *Daqui
+a 1 semana*) porque escrever uma data num telemóvel é um suplício. O projeto
+escolhe-se de uma lista, não se escreve à mão: assim não aparecem no monitor
+três grafias do mesmo projeto.
 
-**`tarefas`** — `titulo`, `projeto`, `responsavel`, `fase`
-(`aceite` · `curso` · `revisao` · `aprovacao` · `entregue`), `bloqueada` (boolean),
-`motivo`, `prazo` (timestamp), `atualizadoEm` (timestamp).
-
-Fase e bloqueio são campos separados de propósito: uma tarefa pode estar *em
-aprovação* **e** parada à espera de resposta de terceiros. O carril mostra as
-duas coisas ao mesmo tempo, e é isso que evita confundir "anda devagar" com
-"está à espera da Braval".
-
-O quadro lê com `onSnapshot`: muda-se a fase em `/gestao` e o monitor acompanha
-sem ninguém lhe tocar.
+Cada tarefa mostra o carril das cinco fases com a atual em destaque, e um botão
+que diz para onde vai a seguir — *Avançar para Em revisão*, não um seletor
+genérico. Ao lado ficam o recuar, o marcar parada (que pergunta à espera de
+quê) e o apagar.
 
 ---
 

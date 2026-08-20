@@ -3,21 +3,48 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // O monitor só lê.
-    match /pessoas/{doc} {
-      allow read: if true;
-      allow write: if escrever();
+    /* O chefe de divisão está escrito por extenso: é a única coisa que não
+       pode viver na base de dados, senão qualquer pessoa se promovia a si
+       própria ao criar o seu registo. Se mudar, muda-se aqui e em
+       lib/dadosDemo.ts. */
+    function chefe() {
+      return autenticado() && request.auth.token.email == 'luis.ferreira@cm-braga.pt';
     }
 
-    match /tarefas/{doc} {
-      allow read: if true;
-      allow write: if escrever();
-    }
-
-    // Escrever exige sessão Google com conta do município.
-    function escrever() {
+    function autenticado() {
       return request.auth != null
         && request.auth.token.email.matches('.*@cm-braga[.]pt');
+    }
+
+    function meu() {
+      return autenticado() && resource.data.responsavel == request.auth.token.email;
+    }
+
+    // O monitor lê sem sessão. É para isso que ele existe.
+    match /pessoas/{email} {
+      allow read: if true;
+      allow create: if autenticado() && email == request.auth.token.email;
+      allow update: if autenticado() && (email == request.auth.token.email || chefe());
+      allow delete: if chefe();
+    }
+
+    /* Uma tarefa com `dono` é pessoal: quem a criou é que lhe mexe. Sem
+       `dono` é da divisão e aparece a toda a gente — e essas só o chefe de
+       divisão as cria. */
+    match /tarefas/{id} {
+      allow read: if true;
+      allow create: if autenticado()
+        && (request.resource.data.dono == request.auth.token.email || chefe());
+      allow update, delete: if chefe()
+        || (autenticado() && resource.data.dono == request.auth.token.email);
+    }
+
+    // Cada um regista o seu trabalho; o chefe distribui a quem quiser.
+    match /trabalhos/{id} {
+      allow read: if true;
+      allow create: if autenticado()
+        && (request.resource.data.responsavel == request.auth.token.email || chefe());
+      allow update, delete: if meu() || chefe();
     }
   }
 }

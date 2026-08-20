@@ -1,29 +1,39 @@
-import type { Pessoa, Tarefa } from "./tipos";
+import type { Pessoa, Tarefa, Trabalho } from "./tipos";
 
-/** A equipa da Divisão. Serve para dois fins: povoar o quadro antes de a
- *  coleção `pessoas` existir, e semear essa coleção a partir de /gestao.
+/** A equipa da Divisão.
  *
- *  O `id` é o que as tarefas guardam em `responsavel` — se mudares um id
- *  depois de haver tarefas, elas ficam órfãs. Nomes e iniciais podem mudar
- *  à vontade.
+ *  O id é o email de trabalho: é ele que liga a pessoa à sua conta e é sobre
+ *  ele que as regras do Firestore decidem quem pode mexer em quê.
  *
- *  A `ordem` decide a posição na grelha: 7 por ecrã, dois ecrãs. */
+ *  Esta lista é a fonte da grelha do monitor — toda a gente aparece lá, tenha
+ *  ou não entrado alguma vez na aplicação.
+ *
+ *  `papel: "chefe"` dá acesso a criar tarefas da divisão e a distribuir
+ *  trabalho por toda a gente. Se o chefe de divisão mudar, muda-se aqui **e**
+ *  em firestore.rules.
+ *
+ *  `veDivisao: true` mostra o separador com o trabalho de todos. Não é uma
+ *  barreira de segurança — o monitor da parede mostra tudo a quem passar —
+ *  é para não encher o telemóvel de quem só precisa do seu. */
 export const EQUIPA: Pessoa[] = [
-  { id: "luis", nome: "Luís Ferreira", iniciais: "LF", ativo: true, ordem: 1 },
-  { id: "hugo", nome: "Hugo Barros", iniciais: "HB", ativo: true, ordem: 2 },
-  { id: "ana", nome: "Ana Esteves", iniciais: "AE", ativo: true, ordem: 3 },
-  { id: "carla", nome: "Carla Vides", iniciais: "CV", ativo: true, ordem: 4 },
-  { id: "carlos", nome: "Carlos Malheiro", iniciais: "CM", ativo: true, ordem: 5 },
-  { id: "joana", nome: "Joana Situ", iniciais: "JS", ativo: true, ordem: 6 },
-  { id: "mario", nome: "Mário Malheiro", iniciais: "MM", ativo: true, ordem: 7 },
-  { id: "paula", nome: "Paula Rodrigues", iniciais: "PR", ativo: true, ordem: 8 },
-  { id: "pedro", nome: "Pedro Abreu", iniciais: "PA", ativo: true, ordem: 9 },
-  { id: "serafim", nome: "Serafim Torres", iniciais: "ST", ativo: true, ordem: 10 },
-  { id: "soraia", nome: "Soraia Pinto", iniciais: "SP", ativo: true, ordem: 11 },
-  { id: "tiago", nome: "Tiago Pinto", iniciais: "TP", ativo: true, ordem: 12 },
-  { id: "vera", nome: "Vera Gomes", iniciais: "VG", ativo: true, ordem: 13 },
-  { id: "vitor", nome: "Vitor Afonso", iniciais: "VA", ativo: true, ordem: 14 },
+  { id: "luis.ferreira@cm-braga.pt", nome: "Luís Ferreira", iniciais: "LF", papel: "chefe", veDivisao: true, ativo: true, ordem: 1 },
+  { id: "hugo.barros@cm-braga.pt", nome: "Hugo Barros", iniciais: "HB", papel: "tecnico", veDivisao: true, ativo: true, ordem: 2 },
+  { id: "ana.esteves@cm-braga.pt", nome: "Ana Esteves", iniciais: "AE", papel: "tecnico", ativo: true, ordem: 3 },
+  { id: "carla.vides@cm-braga.pt", nome: "Carla Vides", iniciais: "CV", papel: "tecnico", ativo: true, ordem: 4 },
+  { id: "carlos.malheiro@cm-braga.pt", nome: "Carlos Malheiro", iniciais: "CM", papel: "tecnico", ativo: true, ordem: 5 },
+  { id: "joana.situ@cm-braga.pt", nome: "Joana Situ", iniciais: "JS", papel: "tecnico", ativo: true, ordem: 6 },
+  { id: "mario.malheiro@cm-braga.pt", nome: "Mário Malheiro", iniciais: "MM", papel: "tecnico", ativo: true, ordem: 7 },
+  { id: "paula.rodrigues@cm-braga.pt", nome: "Paula Rodrigues", iniciais: "PR", papel: "tecnico", ativo: true, ordem: 8 },
+  { id: "pedro.abreu@cm-braga.pt", nome: "Pedro Abreu", iniciais: "PA", papel: "tecnico", ativo: true, ordem: 9 },
+  { id: "serafim.torres@cm-braga.pt", nome: "Serafim Torres", iniciais: "ST", papel: "tecnico", ativo: true, ordem: 10 },
+  { id: "soraia.pinto@cm-braga.pt", nome: "Soraia Pinto", iniciais: "SP", papel: "tecnico", ativo: true, ordem: 11 },
+  { id: "tiago.pinto@cm-braga.pt", nome: "Tiago Pinto", iniciais: "TP", papel: "tecnico", ativo: true, ordem: 12 },
+  { id: "vera.gomes@cm-braga.pt", nome: "Vera Gomes", iniciais: "VG", papel: "tecnico", ativo: true, ordem: 13 },
+  { id: "vitor.afonso@cm-braga.pt", nome: "Vitor Afonso", iniciais: "VA", papel: "tecnico", ativo: true, ordem: 14 },
 ];
 
-/** O quadro arranca vazio: as tarefas são as que cada um criar em /gestao. */
+/** As tarefas da divisão escrevem-se na aplicação, no separador Tarefas.
+ *  Fica vazio de propósito: a lista é vossa, não minha. */
 export const TAREFAS_INICIAIS: Tarefa[] = [];
+
+export const TRABALHOS_INICIAIS: Trabalho[] = [];

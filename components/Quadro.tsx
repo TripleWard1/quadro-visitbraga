@@ -3,23 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Cabecalho from "./Cabecalho";
 import CartaoPessoa from "./CartaoPessoa";
-import Fluxo from "./Fluxo";
-import Legenda from "./Legenda";
-import ListaLateral from "./ListaLateral";
+import FaixaAlerta from "./FaixaAlerta";
+import FaixaEstado from "./FaixaEstado";
 import Rodape from "./Rodape";
-import {
-  COLUNAS_GRELHA,
-  HORIZONTE_DIAS,
-  PESSOAS_POR_PAGINA,
-  ROTACAO_MS,
-} from "@/lib/config";
-import { useTarefas } from "@/lib/useTarefas";
-import type { Pessoa } from "@/lib/tipos";
+import TiraLivres from "./TiraLivres";
+import { COLUNAS_GRELHA, PESSOAS_POR_PAGINA, ROTACAO_MS } from "@/lib/config";
+import { mesmoDia, porPrazo } from "@/lib/datas";
+import { FASES, estaConcluida } from "@/lib/fases";
+import { useQuadro } from "@/lib/useQuadro";
+import type { FaseId } from "@/lib/tipos";
 
-type Ecra = { tipo: "pessoas"; gente: Pessoa[] } | { tipo: "fluxo" };
-
+/** Um cartaz, não um painel de controlo. Cabe tudo num ecrã; só pagina se
+ *  houver mais gente ocupada do que a grelha comporta. */
 export default function Quadro() {
-  const { tarefas, pessoas, fonte, erro } = useTarefas();
+  const { trabalhos, pessoas, tarefas, fonte, erro } = useQuadro();
   const [agora, setAgora] = useState(() => new Date());
   const [passo, setPasso] = useState(0);
   const [pausa, setPausa] = useState(false);
@@ -29,32 +26,56 @@ export default function Quadro() {
     return () => clearInterval(t);
   }, []);
 
-  const ecras: Ecra[] = useMemo(() => {
-    const lista: Ecra[] = [];
-    // Páginas equilibradas: 14 pessoas dão 7+7, e não 7+7+0; 15 dariam 5+5+5.
-    const paginas = Math.max(1, Math.ceil(pessoas.length / PESSOAS_POR_PAGINA));
-    const porPagina = Math.ceil(pessoas.length / paginas);
-    for (let i = 0; i < pessoas.length; i += porPagina) {
-      lista.push({ tipo: "pessoas", gente: pessoas.slice(i, i + porPagina) });
+  const abertos = useMemo(
+    () => trabalhos.filter((t) => !estaConcluida(t.fase)),
+    [trabalhos]
+  );
+
+  const atrasados = abertos.filter((t) => t.prazo && t.prazo < agora).sort(porPrazo);
+  const parados = abertos.filter((t) => t.bloqueada);
+  const hoje = abertos.filter((t) => t.prazo && t.prazo >= agora && mesmoDia(t.prazo, agora));
+
+  const porFase = useMemo(() => {
+    const conta = {} as Record<FaseId, number>;
+    for (const f of FASES) conta[f.id] = 0;
+    for (const t of abertos) conta[t.fase] = (conta[t.fase] ?? 0) + 1;
+    return conta;
+  }, [abertos]);
+
+  const { ocupados, livres } = useMemo(() => {
+    const comTrabalho = new Set(abertos.map((t) => t.responsavel));
+    return {
+      ocupados: pessoas.filter((p) => comTrabalho.has(p.id)),
+      livres: pessoas.filter((p) => !comTrabalho.has(p.id)),
+    };
+  }, [pessoas, abertos]);
+
+  /** Páginas só quando são precisas — e equilibradas quando o são. */
+  const paginas = useMemo(() => {
+    if (ocupados.length <= PESSOAS_POR_PAGINA) return [ocupados];
+    const quantas = Math.ceil(ocupados.length / PESSOAS_POR_PAGINA);
+    const porPagina = Math.ceil(ocupados.length / quantas);
+    const lista = [];
+    for (let i = 0; i < ocupados.length; i += porPagina) {
+      lista.push(ocupados.slice(i, i + porPagina));
     }
-    lista.push({ tipo: "fluxo" });
     return lista;
-  }, [pessoas]);
+  }, [ocupados]);
 
   useEffect(() => {
-    if (pausa || ecras.length < 2) return;
-    const t = setInterval(() => setPasso((p) => (p + 1) % ecras.length), ROTACAO_MS);
+    if (pausa || paginas.length < 2) return;
+    const t = setInterval(() => setPasso((p) => (p + 1) % paginas.length), ROTACAO_MS);
     return () => clearInterval(t);
-  }, [pausa, ecras.length]);
+  }, [pausa, paginas.length]);
 
   useEffect(() => {
-    if (passo >= ecras.length) setPasso(0);
-  }, [ecras.length, passo]);
+    if (passo >= paginas.length) setPasso(0);
+  }, [paginas.length, passo]);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (k === "v") setPasso((p) => (p + 1) % ecras.length);
+      if (k === "v") setPasso((p) => (p + 1) % paginas.length);
       if (k === "p") setPausa((x) => !x);
       if (k === "f") {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -63,86 +84,67 @@ export default function Quadro() {
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, [ecras.length]);
+  }, [paginas.length]);
 
-  const abertas = tarefas.filter((t) => t.fase !== "entregue");
-  const atrasadas = abertas
-    .filter((t) => t.prazo < agora)
-    .sort((a, b) => a.prazo.getTime() - b.prazo.getTime());
-  const aSeguir = abertas
-    .filter(
-      (t) =>
-        t.prazo >= agora &&
-        t.prazo < new Date(agora.getTime() + HORIZONTE_DIAS * 864e5)
-    )
-    .sort((a, b) => a.prazo.getTime() - b.prazo.getTime());
-  const paradas = abertas.filter((t) => t.bloqueada).length;
-  const entregues = tarefas.filter((t) => t.fase === "entregue").length;
-
-  const ecra = ecras[passo] ?? ecras[0];
+  const pagina = paginas[passo] ?? paginas[0] ?? [];
 
   return (
     <div className="quadro">
-      <div
-        className="barra-tempo"
-        key={passo}
-        style={{
-          animationDuration: `${ROTACAO_MS}ms`,
-          animationPlayState: pausa ? "paused" : "running",
-        }}
-      />
+      {paginas.length > 1 && (
+        <div
+          className="barra-tempo"
+          key={passo}
+          style={{
+            animationDuration: `${ROTACAO_MS}ms`,
+            animationPlayState: pausa ? "paused" : "running",
+          }}
+        />
+      )}
 
       <Cabecalho agora={agora} />
-      <Legenda />
+
+      <FaixaEstado
+        abertos={abertos.length}
+        atrasados={atrasados.length}
+        hoje={hoje.length}
+        parados={parados.length}
+        porFase={porFase}
+      />
+
+      <FaixaAlerta
+        atrasados={atrasados}
+        parados={parados}
+        pessoas={pessoas}
+        agora={agora}
+      />
 
       {erro && <p className="aviso">Sem ligação ao Firestore — {erro}</p>}
 
       <main className="corpo">
-        <div className="principal">
-          {ecra.tipo === "pessoas" ? (
-            <div
-              className="grelha"
-              style={{ ["--colunas" as any]: COLUNAS_GRELHA }}
-            >
-              {ecra.gente.map((p) => (
-                <CartaoPessoa key={p.id} pessoa={p} tarefas={tarefas} agora={agora} />
-              ))}
-            </div>
-          ) : (
-            <Fluxo tarefas={abertas} pessoas={pessoas} agora={agora} />
-          )}
-        </div>
-
-        <aside className="lateral">
-          <ListaLateral
-            titulo="Em atraso"
-            subtitulo={String(atrasadas.length)}
-            itens={atrasadas.slice(0, 4)}
-            pessoas={pessoas}
-            agora={agora}
-            vazio="Nada em atraso. Aproveitem."
-            urgente
-          />
-          <ListaLateral
-            titulo="Entra a seguir"
-            subtitulo={`próximos ${HORIZONTE_DIAS} dias`}
-            itens={aSeguir.slice(0, 4)}
-            pessoas={pessoas}
-            agora={agora}
-            vazio="Agenda limpa."
-          />
-        </aside>
+        {pagina.length === 0 ? (
+          <p className="sem-nada">Ninguém tem trabalho registado no quadro.</p>
+        ) : (
+          <div className="grelha" style={{ ["--colunas" as any]: COLUNAS_GRELHA }}>
+            {pagina.map((p) => (
+              <CartaoPessoa
+                key={p.id}
+                pessoa={p}
+                trabalhos={trabalhos}
+                tarefas={tarefas}
+                agora={agora}
+              />
+            ))}
+          </div>
+        )}
+        <TiraLivres pessoas={livres} />
       </main>
 
       <Rodape
-        abertas={abertas.length}
-        atrasadas={atrasadas.length}
-        paradas={paradas}
-        entregues={entregues}
-        ecras={ecras.length}
+        paginas={paginas.length}
         passo={passo}
         pausa={pausa}
         fonte={fonte}
+        concluidos={trabalhos.filter((t) => estaConcluida(t.fase)).length}
       />
     </div>
   );

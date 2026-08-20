@@ -1,187 +1,105 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  isSignInWithEmailLink,
-  sendPasswordResetEmail,
-  sendSignInLinkToEmail,
-  signInWithEmailAndPassword,
-  signInWithEmailLink,
-} from "firebase/auth";
-import { DOMINIO_PERMITIDO } from "@/lib/config";
+import { useState } from "react";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { DOMINIO_PERMITIDO, LOGO, PALAVRA_PASSE_INICIAL, SUBTITULO } from "@/lib/config";
 import { getAuthCliente } from "@/lib/firebase";
+import { traduzirErro } from "@/lib/erros";
 
-const CHAVE_EMAIL = "quadro:email";
-
-/** Entrada sem Google: o município usa Microsoft 365, por isso a prova de que
- *  alguém é da casa é conseguir abrir um email em @cm-braga.pt.
- *
- *  Caminho normal: escreve o email, recebe um link no Outlook, carrega, entrou.
- *  Se o link não chegar (filtros de correio), há a palavra-passe. */
+/** Email e palavra-passe, e mais nada. Na primeira vez a conta cria-se sozinha
+ *  com a palavra-passe inicial — ninguém tem de registar catorze pessoas à mão
+ *  na consola. O ecrã seguinte obriga a escolher outra. */
 export default function Entrada({ aoFalhar }: { aoFalhar: (m: string | null) => void }) {
   const [email, setEmail] = useState("");
   const [palavra, setPalavra] = useState("");
-  const [modo, setModo] = useState<"link" | "palavra">("link");
-  const [enviado, setEnviado] = useState(false);
   const [aTrabalhar, setATrabalhar] = useState(false);
 
-  /* Quem chega aqui vindo do link do email termina a entrada. */
-  useEffect(() => {
+  async function entrar() {
     const auth = getAuthCliente();
-    if (!auth || !isSignInWithEmailLink(auth, window.location.href)) return;
+    if (!auth) return;
 
-    const guardado = window.localStorage.getItem(CHAVE_EMAIL);
-    const endereco = guardado ?? window.prompt("Confirma o teu email:") ?? "";
-    if (!endereco) return;
-
-    signInWithEmailLink(auth, endereco, window.location.href)
-      .then(() => {
-        window.localStorage.removeItem(CHAVE_EMAIL);
-        window.history.replaceState({}, "", window.location.pathname);
-      })
-      .catch((e) => aoFalhar(traduzir(e)));
-  }, [aoFalhar]);
-
-  function validar() {
-    const limpo = email.trim().toLowerCase();
-    if (!limpo.endsWith(`@${DOMINIO_PERMITIDO}`)) {
+    const endereco = email.trim().toLowerCase();
+    if (!endereco.endsWith(`@${DOMINIO_PERMITIDO}`)) {
       aoFalhar(`O email tem de ser @${DOMINIO_PERMITIDO}.`);
-      return null;
+      return;
     }
-    return limpo;
-  }
-
-  async function enviarLink() {
-    const auth = getAuthCliente();
-    const endereco = validar();
-    if (!auth || !endereco) return;
-    setATrabalhar(true);
-    try {
-      await sendSignInLinkToEmail(auth, endereco, {
-        url: `${window.location.origin}/gestao`,
-        handleCodeInApp: true,
-      });
-      window.localStorage.setItem(CHAVE_EMAIL, endereco);
-      setEnviado(true);
-      aoFalhar(null);
-    } catch (e: any) {
-      aoFalhar(traduzir(e));
-    } finally {
-      setATrabalhar(false);
+    if (!palavra) {
+      aoFalhar("Falta a palavra-passe.");
+      return;
     }
-  }
 
-  async function entrarComPalavra() {
-    const auth = getAuthCliente();
-    const endereco = validar();
-    if (!auth || !endereco) return;
     setATrabalhar(true);
+    aoFalhar(null);
     try {
       await signInWithEmailAndPassword(auth, endereco, palavra);
-      aoFalhar(null);
     } catch (e: any) {
-      aoFalhar(traduzir(e));
+      // O Firebase não distingue "conta não existe" de "palavra-passe errada".
+      // Se a palavra-passe é a inicial, tentamos criar: se a conta já existir,
+      // é porque a palavra-passe estava mesmo errada.
+      if (palavra !== PALAVRA_PASSE_INICIAL) {
+        aoFalhar(traduzirErro(e));
+        setATrabalhar(false);
+        return;
+      }
+      try {
+        await createUserWithEmailAndPassword(auth, endereco, palavra);
+      } catch (e2: any) {
+        aoFalhar(
+          e2?.code === "auth/email-already-in-use" ? "Palavra-passe errada." : traduzirErro(e2)
+        );
+      }
     } finally {
       setATrabalhar(false);
     }
-  }
-
-  async function recuperar() {
-    const auth = getAuthCliente();
-    const endereco = validar();
-    if (!auth || !endereco) return;
-    try {
-      await sendPasswordResetEmail(auth, endereco);
-      aoFalhar("Enviámos um email para definires uma palavra-passe nova.");
-    } catch (e: any) {
-      aoFalhar(traduzir(e));
-    }
-  }
-
-  if (enviado) {
-    return (
-      <div className="gestao-secao">
-        <h2>Vê o teu email</h2>
-        <p>
-          Foi um link para <strong>{email.trim().toLowerCase()}</strong>. Abre-o
-          neste mesmo browser e entras direto — não é preciso palavra-passe.
-        </p>
-        <p className="nota" style={{ marginTop: 12 }}>
-          Nada na caixa de entrada? Espreita o lixo eletrónico.
-        </p>
-        <button className="botao discreto" onClick={() => setEnviado(false)}>
-          voltar
-        </button>
-      </div>
-    );
   }
 
   return (
-    <div className="gestao-secao">
-      <h2>{modo === "link" ? "Entrar" : "Entrar com palavra-passe"}</h2>
-      <input
-        className="campo"
-        type="email"
-        inputMode="email"
-        autoComplete="username"
-        placeholder={`nome@${DOMINIO_PERMITIDO}`}
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+    <div className="g-entrada">
+      <div className="g-entrada-marca">
+        <img src={LOGO} alt="Visit Braga" />
+      </div>
+      <div className="g-cartao">
+        <h2>Quadro da Divisão</h2>
+        <p className="g-ajuda">{SUBTITULO}</p>
 
-      {modo === "palavra" && (
-        <input
-          className="campo"
-          type="password"
-          autoComplete="current-password"
-          placeholder="Palavra-passe"
-          value={palavra}
-          onChange={(e) => setPalavra(e.target.value)}
-        />
-      )}
+        <div className="g-campo">
+          <label htmlFor="email">Email de trabalho</label>
+          <input
+            id="email"
+            className="campo"
+            type="email"
+            inputMode="email"
+            autoComplete="username"
+            placeholder={`nome@${DOMINIO_PERMITIDO}`}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && entrar()}
+          />
+        </div>
 
-      <button
-        className="botao principal"
-        disabled={aTrabalhar}
-        onClick={modo === "link" ? enviarLink : entrarComPalavra}
-      >
-        {aTrabalhar ? "Um momento…" : modo === "link" ? "Receber link no email" : "Entrar"}
-      </button>
+        <div className="g-campo">
+          <label htmlFor="palavra">Palavra-passe</label>
+          <input
+            id="palavra"
+            className="campo"
+            type="password"
+            autoComplete="current-password"
+            placeholder="••••••"
+            value={palavra}
+            onChange={(e) => setPalavra(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && entrar()}
+          />
+        </div>
 
-      <div className="gestao-acoes" style={{ marginTop: 14 }}>
-        <button
-          className="botao discreto"
-          onClick={() => setModo(modo === "link" ? "palavra" : "link")}
-        >
-          {modo === "link" ? "tenho palavra-passe" : "prefiro o link no email"}
+        <button className="botao principal" onClick={entrar} disabled={aTrabalhar}>
+          {aTrabalhar ? "Um momento…" : "Entrar"}
         </button>
-        {modo === "palavra" && (
-          <button className="botao discreto" onClick={recuperar}>
-            esqueci-me da palavra-passe
-          </button>
-        )}
+
+        <p className="g-nota" style={{ marginTop: 16 }}>
+          Primeira vez? A palavra-passe é <code>{PALAVRA_PASSE_INICIAL}</code> — escolhes
+          a tua a seguir.
+        </p>
       </div>
     </div>
   );
-}
-
-function traduzir(e: any): string {
-  switch (e?.code) {
-    case "auth/unauthorized-domain":
-      return `O Firebase não reconhece o endereço ${window.location.hostname}. Acrescenta-o em Authentication → Settings → Authorized domains.`;
-    case "auth/operation-not-allowed":
-      return "Falta ativar este método em Authentication → Sign-in method, na consola do Firebase.";
-    case "auth/invalid-email":
-      return "Esse email não parece válido.";
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "Email ou palavra-passe errados. Se nunca definiste uma, pede o link no email.";
-    case "auth/too-many-requests":
-      return "Demasiadas tentativas. Espera uns minutos.";
-    case "auth/invalid-action-code":
-      return "Esse link já foi usado ou expirou. Pede outro.";
-    default:
-      return e?.message ?? "Não foi possível entrar.";
-  }
 }

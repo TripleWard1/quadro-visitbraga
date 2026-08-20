@@ -1,16 +1,17 @@
 /** Logótipo mostrado no cabeçalho. */
 export const LOGO = "https://i.imgur.com/Yakcz6G.png";
 
-/** `true` assenta o logótipo numa chapa clara (para logótipos escuros).
- *  Põe `false` se o ficheiro for branco ou muito claro. */
-export const LOGO_EM_CHAPA_CLARA = true;
+/** `true` assenta o logótipo numa chapa escura — só é preciso se o ficheiro
+ *  do logótipo for branco. Em fundo de papel, o normal é `false`. */
+export const LOGO_EM_CHAPA_CLARA = false;
 
 /** Milissegundos que cada ecrã fica visível antes de rodar. */
-export const ROTACAO_MS = 22000;
+export const ROTACAO_MS = 16000;
 
-/** Cartões de pessoa por ecrã. Com 14 pessoas, 7 dá dois ecrãs certinhos.
- *  As páginas são equilibradas: 15 pessoas dariam 5+5+5, não 7+7+1. */
-export const PESSOAS_POR_PAGINA = 7;
+/** Cartões por ecrã — mas só entram nesta conta as pessoas COM trabalho
+ *  aberto. As outras vão para a tira do fundo. Só se passa a haver mais do que
+ *  um ecrã de pessoas quando mais de 8 estiverem ocupadas ao mesmo tempo. */
+export const PESSOAS_POR_PAGINA = 8;
 
 /** Colunas da grelha de pessoas. 4 colunas × 2 linhas comporta 7 cartões. */
 export const COLUNAS_GRELHA = 4;
@@ -23,3 +24,14 @@ export const SUBTITULO = "Atividades Económicas e Turismo · Município de Brag
 
 export const DOMINIO_PERMITIDO =
   process.env.NEXT_PUBLIC_DOMINIO_PERMITIDO ?? "cm-braga.pt";
+
+/** Palavra-passe da primeira entrada. Quem entra com ela é obrigado a
+ *  escolher outra antes de chegar ao quadro. */
+export const PALAVRA_PASSE_INICIAL = "123456";
+
+/** Mínimo exigido pelo Firebase. */
+export const MINIMO_PALAVRA_PASSE = 6;
+
+/** Email do chefe de divisão. Tem de coincidir com o que está escrito em
+ *  firestore.rules — aqui manda no que se vê, lá manda no que se pode fazer. */
+export const EMAIL_CHEFE = "luis.ferreira@cm-braga.pt";

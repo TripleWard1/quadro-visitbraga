@@ -1,52 +1,47 @@
+import { FASES } from "@/lib/fases";
 import type { FonteDados } from "@/lib/tipos";
 
+/** O rodapé é referência, não notícia: a legenda do carril e o estado da
+ *  ligação. Os números que interessam estão no topo. */
 export default function Rodape({
-  abertas,
-  atrasadas,
-  paradas,
-  entregues,
-  ecras,
+  paginas,
   passo,
   pausa,
   fonte,
+  concluidos,
 }: {
-  abertas: number;
-  atrasadas: number;
-  paradas: number;
-  entregues: number;
-  ecras: number;
+  paginas: number;
   passo: number;
   pausa: boolean;
   fonte: FonteDados;
+  concluidos: number;
 }) {
   return (
     <footer className="rodape">
-      <div className="metricas">
-        <span className="metrica">
-          <b>{abertas}</b> abertas
-        </span>
-        <span className="metrica atraso">
-          <b>{atrasadas}</b> em atraso
-        </span>
-        <span className="metrica">
-          <b>{paradas}</b> paradas
-        </span>
-        <span className="metrica">
-          <b>{entregues}</b> entregues
-        </span>
-      </div>
-      <div className="pontos">
-        {Array.from({ length: ecras }).map((_, i) => (
-          <span key={i} className={"ponto" + (i === passo ? " ativo" : "")} />
+      <span className="rodape-rotulo">Percurso de um trabalho</span>
+      <div className="rodape-fases">
+        {FASES.map((f, i) => (
+          <span className="rf" key={f.id}>
+            <span className="rf-ponto" />
+            {f.nome}
+            {i < FASES.length - 1 && <span className="rf-seta">→</span>}
+          </span>
         ))}
-        <span className="fonte">
-          {pausa
-            ? "rotação em pausa"
-            : fonte === "firestore"
-              ? "em direto"
-              : "dados de demonstração"}
-        </span>
       </div>
+
+      <span className="rodape-concluidos">{concluidos} concluídos</span>
+
+      {paginas > 1 && (
+        <div className="pontos">
+          {Array.from({ length: paginas }).map((_, i) => (
+            <span key={i} className={"ponto" + (i === passo ? " ativo" : "")} />
+          ))}
+        </div>
+      )}
+
+      <span className="fonte">
+        {pausa ? "rotação em pausa" : fonte === "firestore" ? "em direto" : "sem ligação"}
+      </span>
     </footer>
   );
 }
