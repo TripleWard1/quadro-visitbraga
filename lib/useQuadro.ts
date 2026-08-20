@@ -20,7 +20,7 @@ function juntarEquipa(daBase: Pessoa[]): Pessoa[] {
   const mapa = new Map<string, Pessoa>();
   for (const p of EQUIPA) mapa.set(p.id, p);
   for (const p of daBase) mapa.set(p.id, { ...mapa.get(p.id), ...p });
-  return [...mapa.values()]
+  return Array.from(mapa.values())
     .filter((p) => p.id.includes("@") && p.ativo !== false)
     .sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99));
 }
