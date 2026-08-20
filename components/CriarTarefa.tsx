@@ -54,8 +54,8 @@ export default function CriarTarefa({
     <section className="g-cartao">
       <h2>Criar nova tarefa</h2>
       <p className="g-ajuda">
-        Uma frente de trabalho — "Projeto Post", "Green Destinations",
-        "Licenciamento de esplanadas". Escreve-se uma vez e fica na lista.
+        Uma frente de trabalho — «Projeto Post», «Green Destinations»,
+        «Licenciamento de esplanadas». Escreve-se uma vez e fica na lista.
         {souChefe ? "" : " É tua: mais ninguém a vê."}
       </p>
 
@@ -115,7 +115,7 @@ export default function CriarTarefa({
 
       {feito && (
         <p className="g-feito">
-          "{feito}" criada. Já a podes escolher aqui em baixo.
+          «{feito}» criada. Já a podes escolher aqui em baixo.
         </p>
       )}
     </section>
