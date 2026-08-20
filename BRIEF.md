@@ -13,7 +13,7 @@ sobrecarregado, o que está parado à espera de terceiros, o que falha esta
 semana.*
 
 **Cada técnico** (telemóvel, 30 segundos, 2–3 vezes por semana). Pergunta:
-*como registo o que estou a fazer e como digo que avancei.*
+*como registo o que estou a fazer e como digo que avancei.* ok
 
 O erro estrutural da versão anterior foi tratar o monitor como um dashboard de
 software — kanban, rotação de ecrãs, painéis fixos — quando é um **cartaz**.
