@@ -8,13 +8,10 @@ export const LOGO_EM_CHAPA_CLARA = false;
 /** Milissegundos que cada ecrã fica visível antes de rodar. */
 export const ROTACAO_MS = 16000;
 
-/** Cartões por ecrã — mas só entram nesta conta as pessoas COM trabalho
- *  aberto. As outras vão para a tira do fundo. Só se passa a haver mais do que
- *  um ecrã de pessoas quando mais de 8 estiverem ocupadas ao mesmo tempo. */
+/** Cartões por ecrã — só entram nesta conta as pessoas COM trabalho aberto.
+ *  A grelha escolhe o número de colunas conforme quantos cartões há, para não
+ *  deixar três quartos do monitor em branco. */
 export const PESSOAS_POR_PAGINA = 8;
-
-/** Colunas da grelha de pessoas. 4 colunas × 2 linhas comporta 7 cartões. */
-export const COLUNAS_GRELHA = 4;
 
 /** Quantos dias à frente entram no painel "Entra a seguir". */
 export const HORIZONTE_DIAS = 3;

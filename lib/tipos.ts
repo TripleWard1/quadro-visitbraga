@@ -11,6 +11,18 @@ export type Estado =
 
 export type Papel = "chefe" | "tecnico";
 
+/** Carreira, para a barra da equipa. A ordem desta lista é a ordem em que
+ *  os grupos aparecem no monitor. */
+export const CARREIRAS = [
+  { sigla: "CD", nome: "Chefe de Divisão" },
+  { sigla: "TS", nome: "Técnicos Superiores" },
+  { sigla: "AT", nome: "Assistentes Técnicos" },
+  { sigla: "AO", nome: "Assistente Operacional" },
+  { sigla: "CIAC", nome: "CIAC" },
+] as const;
+
+export type Carreira = (typeof CARREIRAS)[number]["sigla"];
+
 export interface Pessoa {
   /** o id do documento É o email de trabalho — assim as regras do Firestore
    *  sabem quem está a escrever sem terem de andar à procura */
@@ -18,6 +30,10 @@ export interface Pessoa {
   nome: string;
   iniciais: string;
   papel?: Papel;
+  /** grupo na barra da equipa */
+  carreira?: Carreira;
+  /** cargo por extenso, para o título de ajuda */
+  cargo?: string;
   ativo?: boolean;
   ordem?: number;
   /** `false` enquanto ainda anda com a palavra-passe da primeira entrada */
