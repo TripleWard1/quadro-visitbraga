@@ -7,6 +7,36 @@ import type { Tarefa, Trabalho } from "@/lib/tipos";
 /** As tarefas da divisão — a lista por onde a equipa escolhe. Escreve-se aqui,
  *  não vem escrita de fábrica. Só o chefe de divisão lá chega: as regras do
  *  Firestore garantem-no, isto é só a interface. */
+/** Arquivar em dois toques, sem caixa do browser. */
+function BotaoArquivar({
+  tarefa,
+  aoArquivar,
+}: {
+  tarefa: Tarefa;
+  aoArquivar: (t: Tarefa) => Promise<void>;
+}) {
+  const [aConfirmar, setAConfirmar] = useState(false);
+
+  if (!aConfirmar) {
+    return (
+      <button className="botao discreto" onClick={() => setAConfirmar(true)}>
+        arquivar
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button className="botao destrutivo" onClick={() => aoArquivar(tarefa)}>
+        arquivar mesmo
+      </button>
+      <button className="botao discreto" onClick={() => setAConfirmar(false)}>
+        afinal não
+      </button>
+    </>
+  );
+}
+
 export default function PainelTarefas({
   tarefas,
   trabalhos,
@@ -52,7 +82,7 @@ export default function PainelTarefas({
           />
         </div>
         <button
-          className="botao principal"
+          className="botao avancar"
           onClick={criar}
           disabled={aGravar || nome.trim().length < 3}
         >
@@ -84,9 +114,7 @@ export default function PainelTarefas({
               <span className="contagem">
                 {abertos} {abertos === 1 ? "trabalho aberto" : "trabalhos abertos"}
               </span>
-              <button className="botao discreto" onClick={() => aoArquivar(t)}>
-                arquivar
-              </button>
+              <BotaoArquivar tarefa={t} aoArquivar={aoArquivar} />
             </div>
           );
         })}

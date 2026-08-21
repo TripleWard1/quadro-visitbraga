@@ -36,3 +36,26 @@ export const EMAIL_CHEFE = "luis.ferreira@cm-braga.pt";
 /** Acima deste número de pessoas por cena, os cartões passam a linhas
  *  compactas. É o que faz o quadro aguentar a divisão toda a registar. */
 export const LIMITE_DENSO = 6;
+
+/** Como o quadro está a ser visto.
+ *  "parede" — 55" a quatro metros, corpo grande (o uso real).
+ *  "perto"  — portátil a 60 cm, corpo reduzido a 70% (para desenvolver).
+ *  Alterna-se com a tecla T sem mexer no código. */
+export const VISTA_PADRAO: "parede" | "perto" = "parede";
+
+/** Afinação fina do tamanho do texto no monitor.
+ *
+ *  A escala está calibrada para um televisor de 55" a 1080p, lido a quatro
+ *  metros — o que num portátil, a meio metro, parece enorme, e é suposto
+ *  parecer. Se no monitor real ficar grande ou pequena de mais, mexe-se aqui:
+ *  0.85 encolhe 15%, 1.15 aumenta 15%. Não mexer na escala em globals.css.
+ *
+ *  A escala é agora FIXA e compacta, como um painel normal — deixou de crescer
+ *  com o tamanho do ecrã, que era o que fazia tudo ficar gigante num monitor
+ *  grande. Se na parede se ler mal a quatro metros, sobe-se aqui (1.2, 1.4)
+ *  ou usa-se o zoom do browser no monitor. */
+export const ESCALA_MONITOR = 1;
+
+/** Onde a equipa regista o trabalho. Aparece no rodapé do monitor — se
+ *  ninguém souber o endereço, ninguém regista. */
+export const ENDERECO_GESTAO = "quadro-visitbraga.vercel.app/gestao";

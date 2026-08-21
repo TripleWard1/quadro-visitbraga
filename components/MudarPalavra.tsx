@@ -113,7 +113,7 @@ export default function MudarPalavra({
       />
 
       <div className="g-acoes">
-        <button className="botao principal" onClick={guardar} disabled={aTrabalhar}>
+        <button className="botao avancar" onClick={guardar} disabled={aTrabalhar}>
           {aTrabalhar ? "A guardar…" : "Guardar"}
         </button>
         {!obrigatoria && aoCancelar && (

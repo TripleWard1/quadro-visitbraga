@@ -96,7 +96,7 @@ export default function CriarTarefa({
 
       <div className="g-acoes">
         <button
-          className="botao principal"
+          className="botao avancar"
           onClick={criar}
           disabled={aGravar || nome.trim().length < 3}
         >

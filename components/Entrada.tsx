@@ -91,7 +91,7 @@ export default function Entrada({ aoFalhar }: { aoFalhar: (m: string | null) => 
           />
         </div>
 
-        <button className="botao principal" onClick={entrar} disabled={aTrabalhar}>
+        <button className="botao avancar" onClick={entrar} disabled={aTrabalhar}>
           {aTrabalhar ? "Um momento…" : "Entrar"}
         </button>
 

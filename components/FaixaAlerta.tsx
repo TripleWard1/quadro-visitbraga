@@ -17,8 +17,14 @@ export default function FaixaAlerta({
 }) {
   if (atrasados.length === 0 && parados.length === 0) return null;
 
-  const nome = (email: string) =>
-    pessoas.find((p) => p.id === email)?.nome.split(" ")[0] ?? "alguém";
+  const nome = (t: Trabalho) => {
+    const gente = t.responsaveis
+      .map((e) => pessoas.find((p) => p.id === e)?.nome.split(" ")[0])
+      .filter(Boolean);
+    if (gente.length === 0) return "alguém";
+    if (gente.length === 1) return gente[0];
+    return `${gente[0]} +${gente.length - 1}`;
+  };
 
   return (
     <section className="alerta">
@@ -33,7 +39,7 @@ export default function FaixaAlerta({
             <div className="alerta-itens">
               {atrasados.slice(0, 5).map((t) => (
                 <span className="alerta-item" key={t.id}>
-                  <b>{nome(t.responsavel)}</b> {t.titulo}
+                  <b>{nome(t)}</b> {t.titulo}
                   <em>{prazoLegivel(t.prazo, agora)}</em>
                 </span>
               ))}
@@ -52,7 +58,7 @@ export default function FaixaAlerta({
             <div className="alerta-itens">
               {parados.slice(0, 5).map((t) => (
                 <span className="alerta-item" key={t.id}>
-                  <b>{nome(t.responsavel)}</b> {t.titulo}
+                  <b>{nome(t)}</b> {t.titulo}
                   <em>{t.motivo}</em>
                 </span>
               ))}

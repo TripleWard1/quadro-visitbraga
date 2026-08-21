@@ -23,29 +23,46 @@ export const CARREIRAS = [
 
 export type Carreira = (typeof CARREIRAS)[number]["sigla"];
 
+/** Peso grosseiro, três níveis, escolhido em meio segundo. Serve para a
+ *  leitura de carga não tratar oito emails como o plano estratégico.
+ *  Comparar dentro da mesma pessoa ao longo do tempo, não entre pessoas. */
+export const PESOS = [
+  { valor: 1 as const, nome: "Pequeno", dica: "horas" },
+  { valor: 2 as const, nome: "Normal", dica: "dias" },
+  { valor: 3 as const, nome: "Grande", dica: "semanas" },
+];
+
+export type Peso = 1 | 2 | 3;
+
+/** De onde vem o trabalho. Separa prazo legal de "prometi para quinta", que
+ *  até agora tinham a mesma cor, e serve para defender a divisão para cima. */
+export const ORIGENS = [
+  { id: "iniciativa", nome: "Iniciativa da divisão" },
+  { id: "despacho", nome: "Despacho" },
+  { id: "legal", nome: "Prazo legal" },
+  { id: "candidatura", nome: "Candidatura" },
+  { id: "pedido", nome: "Pedido de outro serviço" },
+] as const;
+
+export type Origem = (typeof ORIGENS)[number]["id"];
+
 export interface Pessoa {
-  /** o id do documento É o email de trabalho — assim as regras do Firestore
-   *  sabem quem está a escrever sem terem de andar à procura */
+  /** o id do documento É o email de trabalho */
   id: string;
   nome: string;
   iniciais: string;
   papel?: Papel;
-  /** grupo na barra da equipa */
   carreira?: Carreira;
-  /** cargo por extenso, para o título de ajuda */
   cargo?: string;
   ativo?: boolean;
   ordem?: number;
-  /** `false` enquanto ainda anda com a palavra-passe da primeira entrada */
   senhaDefinida?: boolean;
-  /** vê o separador com o trabalho de toda a divisão */
   veDivisao?: boolean;
+  /** ausente até esta data — sai da conta de atrasos e aparece como tal */
+  ausenteAte?: Date | null;
 }
 
-/** Uma frente de trabalho.
- *
- *  Com `dono` preenchido é pessoal: só aparece a quem a criou. Sem `dono` é da
- *  divisão, aparece a toda a gente — e só o chefe de divisão as cria. */
+/** Uma frente de trabalho. Com `dono` é pessoal; sem `dono` é da divisão. */
 export interface Tarefa {
   id: string;
   nome: string;
@@ -54,22 +71,41 @@ export interface Tarefa {
   ordem?: number;
 }
 
-/** Um trabalho concreto: o que uma pessoa está a fazer, e em que fase. */
+/** Um trabalho concreto: o que se faz, quem faz, e em que fase está. */
 export interface Trabalho {
   id: string;
   titulo: string;
   /** id do documento em `tarefas` — pode ficar vazio */
   tarefa: string;
-  /** email de quem faz — em `pessoas` é o id do documento */
-  responsavel: string;
+  /** emails de quem faz. Uma feira ou uma visita têm quatro pessoas. */
+  responsaveis: string[];
   fase: FaseId;
-  /** parada por causa externa — independente da fase */
+  peso: Peso;
+  origem: Origem;
   bloqueada?: boolean;
   motivo?: string;
+  /** quem está a atrasar: nem sempre é o chefe de divisão */
+  esperaPor?: string;
   /** `null` = trabalho contínuo, sem data para fechar */
   prazo: Date | null;
+  criadoEm?: Date;
   atualizadoEm?: Date;
+  fechadoEm?: Date | null;
+  /** sai de circulação no monitor, fica no histórico */
+  arquivado?: boolean;
   criadoPor?: string;
+}
+
+/** Uma mudança de fase. É a peça que permite saber onde as coisas encalham,
+ *  e o que mudou desde a última reunião. Sem isto, metade do quadro é cega. */
+export interface Movimento {
+  id: string;
+  trabalho: string;
+  titulo: string;
+  de: FaseId | null;
+  para: FaseId;
+  quem: string;
+  quando: Date;
 }
 
 export type FonteDados = "demo" | "firestore";

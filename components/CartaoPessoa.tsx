@@ -21,6 +21,7 @@ export default function CartaoPessoa({
   tarefas,
   agora,
   denso = false,
+  ausente = false,
 }: {
   pessoa: Pessoa;
   trabalhos: Trabalho[];
@@ -28,15 +29,19 @@ export default function CartaoPessoa({
   agora: Date;
   /** com muita gente ocupada, os trabalhos passam a linhas compactas */
   denso?: boolean;
+  /** de férias, baixa ou formação: nada dela fica vermelho */
+  ausente?: boolean;
 }) {
   const abertos = trabalhos
-    .filter((t) => t.responsavel === pessoa.id && !estaConcluida(t.fase))
+    .filter((t) => t.responsaveis.includes(pessoa.id) && !estaConcluida(t.fase))
     .sort(porPrazo);
 
   const max = denso ? 5 : 4;
   const visiveis = abertos.slice(0, max);
   const escondidos = abertos.length - visiveis.length;
-  const estado = abertos.length ? pior(abertos.map((t) => estadoDe(t, agora))) : "livre";
+  const estado = abertos.length
+    ? pior(abertos.map((t) => estadoDe(t, agora, ausente)))
+    : "livre";
   const acabou = abertos.some((t) => ehRecente(t, agora));
 
   return (
@@ -49,24 +54,25 @@ export default function CartaoPessoa({
           {pessoa.iniciais}
         </span>
         <h3>{denso ? pessoa.nome.split(" ")[0] : pessoa.nome}</h3>
+        {ausente && <span className="etiqueta-ausente">ausente</span>}
         <span className="ref">{abertos.length}</span>
       </header>
 
       {denso
         ? visiveis.map((t) => (
-            <div className={`item-denso estado-${estadoDe(t, agora)}`} key={t.id}>
+            <div className={`item-denso estado-${estadoDe(t, agora, ausente)}`} key={t.id}>
               <span className="id-titulo">{t.titulo}</span>
               <span className="id-fase">{nomeFase(t.fase)}</span>
               <span className="id-prazo">{prazoLegivel(t.prazo, agora)}</span>
             </div>
           ))
         : visiveis.map((t) => (
-            <div className={`item estado-${estadoDe(t, agora)}`} key={t.id}>
+            <div className={`item estado-${estadoDe(t, agora, ausente)}`} key={t.id}>
               {t.tarefa && <p className="projeto">{nomeTarefa(tarefas, t.tarefa)}</p>}
               <p className="tarefa">{t.titulo}</p>
               <Carril fase={t.fase} bloqueada={t.bloqueada} />
               <div className="cartao-fundo">
-                <span className="fase-nome">{nomeFase(t.fase)}</span>
+                <span className={`fase-nome fase-${t.fase}`}>{nomeFase(t.fase)}</span>
                 <span className="prazo">{prazoLegivel(t.prazo, agora)}</span>
               </div>
               {t.bloqueada && <p className="bloqueio">Parada — {t.motivo}</p>}

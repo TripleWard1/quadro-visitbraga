@@ -1,5 +1,6 @@
 import type { Estado, Trabalho } from "./tipos";
 import { estaConcluida } from "./fases";
+import { limiteDeAtraso } from "./tempo";
 
 const fmtHora = new Intl.DateTimeFormat("pt-PT", { hour: "2-digit", minute: "2-digit" });
 const fmtDia = new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short" });
@@ -41,11 +42,13 @@ export function prazoLegivel(prazo: Date | null, agora: Date) {
   return `${fmtDia.format(prazo)}, ${fmtHora.format(prazo)}`;
 }
 
-export function estadoDe(t: Trabalho, agora: Date): Estado {
+/** `ausente` desliga o vermelho: quem está fora não está atrasado.
+ *  O atraso só conta depois de um dia útil de tolerância — ver lib/tempo.ts. */
+export function estadoDe(t: Trabalho, agora: Date, ausente = false): Estado {
   if (estaConcluida(t.fase)) return "concluida";
   if (t.bloqueada) return "bloqueada";
   if (!t.prazo) return "continua";
-  if (t.prazo < agora) return "atrasada";
+  if (!ausente && agora >= limiteDeAtraso(t.prazo)) return "atrasada";
   if (mesmoDia(t.prazo, agora)) return "hoje";
   return "normal";
 }

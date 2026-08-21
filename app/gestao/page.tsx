@@ -14,14 +14,17 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import Carril from "@/components/Carril";
+import ComandoReuniao from "@/components/ComandoReuniao";
 import CriarTarefa from "@/components/CriarTarefa";
 import Entrada from "@/components/Entrada";
 import FormularioTrabalho from "@/components/FormularioTrabalho";
 import MudarPalavra from "@/components/MudarPalavra";
+import PainelCapacidade from "@/components/PainelCapacidade";
 import PainelTarefas from "@/components/PainelTarefas";
 import { DOMINIO_PERMITIDO, LOGO, SUBTITULO, TITULO } from "@/lib/config";
 import { EQUIPA } from "@/lib/dadosDemo";
 import { estadoDe, mesmoDia, porPrazo, prazoLegivel } from "@/lib/datas";
+import { contaComoAtraso, estaAusente } from "@/lib/tempo";
 import { traduzirErro } from "@/lib/erros";
 import {
   FASES,
@@ -34,18 +37,26 @@ import {
 import { getAuthCliente, getDb } from "@/lib/firebase";
 import { firebaseConfigurado } from "@/lib/firebaseConfig";
 import { idDeTarefa, nomeTarefa } from "@/lib/tarefas";
+import { registarMovimento } from "@/lib/movimentos";
 import { useQuadro } from "@/lib/useQuadro";
-import type { FaseId, Pessoa, Tarefa } from "@/lib/tipos";
+import type { FaseId, Origem, Peso, Pessoa, Tarefa } from "@/lib/tipos";
 
-type Aba = "minhas" | "divisao" | "tarefas";
+type Aba = "minhas" | "divisao" | "tarefas" | "capacidade";
 
 export default function Gestao() {
-  const { trabalhos, pessoas, tarefas } = useQuadro();
+  const { trabalhos, pessoas, tarefas, reuniao } = useQuadro();
   const [utilizador, setUtilizador] = useState<User | null>(null);
   const [aVerificar, setAVerificar] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>("minhas");
   const [aMudarPalavra, setAMudarPalavra] = useState(false);
+  /** O formulário deixou de estar em cima: a ação diária é avançar fase,
+   *  não criar trabalho. Criar abre-se quando é preciso. */
+  const [aRegistar, setARegistar] = useState(false);
+  /** Apagar em dois toques, com possibilidade de voltar atrás. */
+  const [aApagar, setAApagar] = useState<string | null>(null);
+  const [aBloquear, setABloquear] = useState<string | null>(null);
+  const [motivoBloqueio, setMotivoBloqueio] = useState("");
 
   const eu: Pessoa | null =
     pessoas.find((p) => p.id.toLowerCase() === utilizador?.email?.toLowerCase()) ?? null;
@@ -92,6 +103,35 @@ export default function Gestao() {
     })();
   }, [utilizador]);
 
+  async function comandarReuniao(ativa: boolean, indice: number) {
+    const db = getDb();
+    if (!db) return;
+    try {
+      await setDoc(doc(db, "controlo", "reuniao"), {
+        ativa,
+        indice,
+        atualizadoEm: serverTimestamp(),
+      });
+    } catch (e: any) {
+      setErro(traduzirErro(e));
+    }
+  }
+
+  async function terminarReuniao() {
+    const db = getDb();
+    if (!db || !eu) return;
+    try {
+      // O marcador é o que define o "desde a última reunião" da próxima vez.
+      await addDoc(collection(db, "reunioes"), {
+        quando: serverTimestamp(),
+        conduzida_por: eu.id,
+      });
+      await comandarReuniao(false, 0);
+    } catch (e: any) {
+      setErro(traduzirErro(e));
+    }
+  }
+
   async function marcarPalavraDefinida() {
     const db = getDb();
     if (!db || !eu) return;
@@ -103,21 +143,36 @@ export default function Gestao() {
     titulo: string;
     tarefa: string;
     prazo: Date | null;
-    responsavel: string;
+    responsaveis: string[];
+    peso: Peso;
+    origem: Origem;
   }) {
     const db = getDb();
     if (!db || !eu) return false;
     try {
-      await addDoc(collection(db, "trabalhos"), {
+      const novo = await addDoc(collection(db, "trabalhos"), {
         titulo: dados.titulo,
         tarefa: dados.tarefa,
-        responsavel: dados.responsavel,
+        responsaveis: dados.responsaveis,
+        peso: dados.peso,
+        origem: dados.origem,
         prazo: dados.prazo ? Timestamp.fromDate(dados.prazo) : null,
         fase: "porfazer" as FaseId,
         bloqueada: false,
         motivo: "",
+        esperaPor: "",
+        arquivado: false,
+        fechadoEm: null,
         criadoPor: eu.id,
+        criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp(),
+      });
+      await registarMovimento(db, {
+        trabalho: novo.id,
+        titulo: dados.titulo,
+        de: null,
+        para: "porfazer",
+        quem: eu.id,
       });
       setErro(null);
       return true;
@@ -151,7 +206,6 @@ export default function Gestao() {
   async function arquivarTarefa(t: Tarefa) {
     const db = getDb();
     if (!db) return;
-    if (!window.confirm(`Arquivar "${t.nome}"? Deixa de aparecer na lista.`)) return;
     try {
       await updateDoc(doc(db, "tarefas", t.id), { ativo: false });
     } catch (e: any) {
@@ -161,23 +215,39 @@ export default function Gestao() {
 
   async function mudarFase(id: string, fase: FaseId) {
     const db = getDb();
-    if (!db) return;
+    if (!db || !eu) return;
+    const antes = trabalhos.find((t) => t.id === id);
     try {
-      await updateDoc(doc(db, "trabalhos", id), { fase, atualizadoEm: serverTimestamp() });
+      await updateDoc(doc(db, "trabalhos", id), {
+        fase,
+        atualizadoEm: serverTimestamp(),
+        // fechar guarda a data; é o que faz o trabalho sair do monitor ao fim
+        // de uma semana e alimenta o "feito esta semana"
+        fechadoEm: estaConcluida(fase) ? serverTimestamp() : null,
+      });
+      await registarMovimento(db, {
+        trabalho: id,
+        titulo: antes?.titulo ?? "",
+        de: antes?.fase ?? null,
+        para: fase,
+        quem: eu.id,
+      });
     } catch (e: any) {
       setErro(traduzirErro(e));
     }
   }
 
-  async function alternarBloqueio(id: string, bloqueada: boolean) {
+  async function alternarBloqueio(id: string, bloqueada: boolean, motivo = "") {
     const db = getDb();
     if (!db) return;
-    const motivo = bloqueada ? "" : (window.prompt("À espera de quê?") ?? "").trim();
-    if (!bloqueada && !motivo) return;
+    if (!bloqueada && !motivo.trim()) return;
     try {
       await updateDoc(doc(db, "trabalhos", id), {
         bloqueada: !bloqueada,
-        motivo,
+        motivo: motivo.trim(),
+        // quem está a atrasar. Nem sempre é o chefe de divisão — muitas vezes
+        // é o jurídico, o Turismo de Portugal, a Braval.
+        esperaPor: bloqueada ? "" : motivo.trim(),
         atualizadoEm: serverTimestamp(),
       });
     } catch (e: any) {
@@ -185,12 +255,29 @@ export default function Gestao() {
     }
   }
 
-  async function apagar(id: string, titulo: string) {
+  async function apagar(id: string) {
     const db = getDb();
     if (!db) return;
-    if (!window.confirm(`Apagar "${titulo}"?`)) return;
     try {
       await deleteDoc(doc(db, "trabalhos", id));
+      setAApagar(null);
+    } catch (e: any) {
+      setErro(traduzirErro(e));
+    }
+  }
+
+  /** Ausência: um estado de ecrã, não gestão de férias. O calendário continua
+   *  a ser a fonte de verdade; isto só evita que o quadro chame ocioso quem
+   *  está fora e acuse de atraso quem não está cá para responder. */
+  async function marcarAusencia(ate: Date | null) {
+    const db = getDb();
+    if (!db || !eu) return;
+    try {
+      await setDoc(
+        doc(db, "pessoas", eu.id),
+        { ausenteAte: ate ? Timestamp.fromDate(ate) : null },
+        { merge: true }
+      );
     } catch (e: any) {
       setErro(traduzirErro(e));
     }
@@ -274,8 +361,8 @@ export default function Gestao() {
 
   const agora = new Date();
   const abertos = trabalhos.filter((t) => !estaConcluida(t.fase));
-  const meus = abertos.filter((t) => t.responsavel === eu.id);
-  const emAtraso = meus.filter((t) => t.prazo && t.prazo < agora);
+  const meus = abertos.filter((t) => t.responsaveis.includes(eu.id));
+  const emAtraso = meus.filter((t) => contaComoAtraso(t, pessoas, agora));
   const paraHoje = meus.filter((t) => t.prazo && t.prazo >= agora && mesmoDia(t.prazo, agora));
 
   const lista = (aba === "divisao" && vejoDivisao ? abertos : meus).slice().sort(porPrazo);
@@ -353,7 +440,9 @@ export default function Gestao() {
           </button>
         </div>
 
-        {aba === "tarefas" ? (
+        {aba === "capacidade" && vejoDivisao ? (
+          <PainelCapacidade pessoas={pessoas} trabalhos={trabalhos} agora={new Date()} />
+        ) : aba === "tarefas" ? (
           <PainelTarefas
             tarefas={minhasTarefas}
             trabalhos={trabalhos}
@@ -363,22 +452,52 @@ export default function Gestao() {
           />
         ) : (
           <>
-            {aba === "minhas" && (
-              <CriarTarefa
-                quantas={minhasTarefas.length}
-                souChefe={souChefe}
-                aoCriar={criarTarefa}
+            {aba === "minhas" && vejoDivisao && (
+              <ComandoReuniao
+                pessoas={pessoas}
+                ativa={reuniao.ativa}
+                indice={reuniao.indice}
+                aoMudar={comandarReuniao}
+                aoTerminar={terminarReuniao}
               />
             )}
 
             {aba === "minhas" && (
-              <FormularioTrabalho
-                eu={eu}
-                pessoas={pessoas}
-                tarefas={minhasTarefas}
-                souChefe={souChefe}
-                aoCriar={criarTrabalho}
-              />
+              <div className="g-barra-acao">
+                <button
+                  className={"botao" + (aRegistar ? "" : " avancar")}
+                  onClick={() => setARegistar(!aRegistar)}
+                >
+                  {aRegistar ? "fechar" : "+ Registar trabalho"}
+                </button>
+                <button
+                  className="botao discreto"
+                  onClick={() =>
+                    eu.ausenteAte
+                      ? marcarAusencia(null)
+                      : marcarAusencia(new Date(Date.now() + 7 * 864e5))
+                  }
+                >
+                  {eu.ausenteAte ? "voltei" : "vou estar ausente"}
+                </button>
+              </div>
+            )}
+
+            {aba === "minhas" && aRegistar && (
+              <>
+                <CriarTarefa
+                  quantas={minhasTarefas.length}
+                  souChefe={souChefe}
+                  aoCriar={criarTarefa}
+                />
+                <FormularioTrabalho
+                  eu={eu}
+                  pessoas={pessoas}
+                  tarefas={minhasTarefas}
+                  souChefe={souChefe}
+                  aoCriar={criarTrabalho}
+                />
+              </>
             )}
 
             <div className="g-lista">
@@ -391,9 +510,11 @@ export default function Gestao() {
               )}
 
               {lista.map((t) => {
-                const dono = pessoas.find((p) => p.id === t.responsavel);
-                const posso = souChefe || t.responsavel === eu.id;
-                const estado = estadoDe(t, agora);
+                const donos = t.responsaveis
+                  .map((e) => pessoas.find((p) => p.id === e))
+                  .filter(Boolean) as Pessoa[];
+                const posso = souChefe || t.responsaveis.includes(eu.id);
+                const estado = estadoDe(t, agora, estaAusente(donos[0], agora));
                 const atual = idxFase(t.fase);
                 const naFimDaLinha = estaConcluida(t.fase);
 
@@ -401,7 +522,11 @@ export default function Gestao() {
                   <article className={`g-tarefa estado-${estado}`} key={t.id}>
                     <h3>{t.titulo}</h3>
                     <div className="g-meta">
-                      <span>{dono?.nome ?? "por atribuir"}</span>
+                      <span>
+                        {donos.length === 0
+                          ? "por atribuir"
+                          : donos.map((d) => d.nome).join(", ")}
+                      </span>
                       {t.tarefa && (
                         <>
                           <span className="ponto-sep">·</span>
@@ -437,10 +562,48 @@ export default function Gestao() {
 
                     {t.bloqueada && <p className="g-bloqueio">Parada — {t.motivo}</p>}
 
+                    {aBloquear === t.id && (
+                      <div className="g-inline">
+                        <label htmlFor={`m-${t.id}`}>À espera de quê ou de quem?</label>
+                        <input
+                          id={`m-${t.id}`}
+                          className="campo"
+                          autoFocus
+                          placeholder="resposta da Braval"
+                          value={motivoBloqueio}
+                          onChange={(e) => setMotivoBloqueio(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              alternarBloqueio(t.id, false, motivoBloqueio);
+                              setABloquear(null);
+                            }
+                          }}
+                        />
+                        <div className="g-acoes">
+                          <button
+                            className="botao avancar"
+                            disabled={!motivoBloqueio.trim()}
+                            onClick={() => {
+                              alternarBloqueio(t.id, false, motivoBloqueio);
+                              setABloquear(null);
+                            }}
+                          >
+                            Marcar parada
+                          </button>
+                          <button
+                            className="botao discreto"
+                            onClick={() => setABloquear(null)}
+                          >
+                            cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {posso ? (
                       <div className="g-acoes">
                         <button
-                          className="botao principal"
+                          className="botao avancar"
                           disabled={naFimDaLinha}
                           onClick={() => mudarFase(t.id, faseSeguinte(t.fase))}
                         >
@@ -456,18 +619,44 @@ export default function Gestao() {
                         </button>
                         <button
                           className="botao discreto"
-                          onClick={() => alternarBloqueio(t.id, Boolean(t.bloqueada))}
+                          onClick={() => {
+                            if (t.bloqueada) alternarBloqueio(t.id, true);
+                            else {
+                              setABloquear(aBloquear === t.id ? null : t.id);
+                              setMotivoBloqueio("");
+                            }
+                          }}
                         >
                           {t.bloqueada ? "destrancar" : "marcar parada"}
                         </button>
-                        <button className="botao discreto" onClick={() => apagar(t.id, t.titulo)}>
-                          apagar
-                        </button>
+                        {aApagar === t.id ? (
+                          <>
+                            <button
+                              className="botao destrutivo"
+                              onClick={() => apagar(t.id)}
+                            >
+                              apagar mesmo
+                            </button>
+                            <button
+                              className="botao discreto"
+                              onClick={() => setAApagar(null)}
+                            >
+                              afinal não
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="botao discreto"
+                            onClick={() => setAApagar(t.id)}
+                          >
+                            apagar
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <p className="g-so-leitura">
-                        Só {dono?.nome.split(" ")[0] ?? "o responsável"} ou o chefe de
-                        divisão podem mexer neste.
+                        Só {donos[0]?.nome.split(" ")[0] ?? "o responsável"} ou o chefe
+                        de divisão podem mexer neste.
                       </p>
                     )}
                   </article>

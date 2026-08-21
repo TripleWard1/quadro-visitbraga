@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Pessoa, Tarefa } from "@/lib/tipos";
+import { ORIGENS, PESOS } from "@/lib/tipos";
+import type { Origem, Peso, Pessoa, Tarefa } from "@/lib/tipos";
 
 /** Atalhos de prazo. Escrever "22/09/2026 17:00" num telemóvel é um suplício;
  *  quase sempre o prazo é hoje, amanhã ou sexta — ou não há prazo nenhum. */
@@ -52,14 +53,18 @@ export default function FormularioTrabalho({
     titulo: string;
     tarefa: string;
     prazo: Date | null;
-    responsavel: string;
+    responsaveis: string[];
+    peso: Peso;
+    origem: Origem;
   }) => Promise<boolean>;
 }) {
   const [titulo, setTitulo] = useState("");
   const [tarefa, setTarefa] = useState("");
   const [prazo, setPrazo] = useState("");
   const [semPrazo, setSemPrazo] = useState(false);
-  const [responsavel, setResponsavel] = useState(eu.id);
+  const [responsaveis, setResponsaveis] = useState<string[]>([eu.id]);
+  const [peso, setPeso] = useState<Peso>(2);
+  const [origem, setOrigem] = useState<Origem>("iniciativa");
   const [atalhoAtivo, setAtalhoAtivo] = useState<string | null>(null);
   const [aGravar, setAGravar] = useState(false);
 
@@ -84,7 +89,9 @@ export default function FormularioTrabalho({
       titulo: titulo.trim(),
       tarefa,
       prazo: semPrazo ? null : new Date(prazo),
-      responsavel,
+      responsaveis: responsaveis.length ? responsaveis : [eu.id],
+      peso,
+      origem,
     });
     if (feito) {
       setTitulo("");
@@ -92,7 +99,9 @@ export default function FormularioTrabalho({
       setPrazo("");
       setSemPrazo(false);
       setAtalhoAtivo(null);
-      setResponsavel(eu.id);
+      setResponsaveis([eu.id]);
+      setPeso(2);
+      setOrigem("iniciativa");
     }
     setAGravar(false);
   }
@@ -185,30 +194,74 @@ export default function FormularioTrabalho({
         )}
       </div>
 
+      <div className="g-passo feito" data-passo="4">
+        <label>
+          Tamanho<span className="dica">para a carga não contar emails como planos</span>
+        </label>
+        <div className="g-atalhos">
+          {PESOS.map((p) => (
+            <button
+              type="button"
+              key={p.valor}
+              className={"g-atalho" + (peso === p.valor ? " ativo" : "")}
+              onClick={() => setPeso(p.valor)}
+            >
+              {p.nome} <span className="dica-inline">{p.dica}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="g-passo feito" data-passo="5">
+        <label htmlFor="origem">
+          De onde vem<span className="dica">separa prazo legal de promessa</span>
+        </label>
+        <select
+          id="origem"
+          className="campo"
+          value={origem}
+          onChange={(e) => setOrigem(e.target.value as Origem)}
+        >
+          {ORIGENS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {souChefe && (
-        <div className="g-passo" data-passo="4">
-          <label htmlFor="responsavel">Quem faz</label>
-          <select
-            id="responsavel"
-            className="campo"
-            value={responsavel}
-            onChange={(e) => setResponsavel(e.target.value)}
-          >
-            <option value={eu.id}>Eu</option>
-            {pessoas
-              .filter((p) => p.id !== eu.id)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome}
-                </option>
-              ))}
-          </select>
+        <div className="g-passo feito" data-passo="6">
+          <label>
+            Quem faz<span className="dica">pode ser mais do que uma pessoa</span>
+          </label>
+          <div className="g-atalhos">
+            {pessoas.map((p) => {
+              const escolhida = responsaveis.includes(p.id);
+              return (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={"g-atalho" + (escolhida ? " ativo" : "")}
+                  onClick={() =>
+                    setResponsaveis((atuais) =>
+                      escolhida
+                        ? atuais.filter((x) => x !== p.id)
+                        : [...atuais, p.id]
+                    )
+                  }
+                >
+                  {p.id === eu.id ? "Eu" : p.nome.split(" ")[0]}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
       <div className="g-acoes">
         <button
-          className="botao principal botao-largo"
+          className="botao avancar botao-largo"
           onClick={submeter}
           disabled={!pronto || aGravar}
         >

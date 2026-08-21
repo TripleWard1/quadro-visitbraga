@@ -8,10 +8,13 @@ import type { Carreira, Pessoa } from "@/lib/tipos";
 export default function BarraEquipa({
   pessoas,
   ocupados,
+  ausentes = [],
 }: {
   pessoas: Pessoa[];
   ocupados: Set<string>;
+  ausentes?: Pessoa[];
 }) {
+  const fora = new Set(ausentes.map((p) => p.id));
   const grupos = CARREIRAS.map((c) => ({
     ...c,
     gente: pessoas.filter((p) => (p.carreira ?? "TS") === (c.sigla as Carreira)),
@@ -25,9 +28,12 @@ export default function BarraEquipa({
           <div className="equipa-gente">
             {g.gente.map((p) => {
               const ativo = ocupados.has(p.id);
+              const ausente = fora.has(p.id);
               return (
                 <span
-                  className={"pessoa-chip" + (ativo ? " ativo" : "")}
+                  className={
+                    "pessoa-chip" + (ativo ? " ativo" : "") + (ausente ? " ausente" : "")
+                  }
                   key={p.id}
                   title={`${p.nome} — ${p.cargo ?? ""}`}
                 >

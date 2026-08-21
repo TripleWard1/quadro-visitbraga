@@ -23,7 +23,7 @@ export default function CenaSemana({
   tarefas: Tarefa[];
   agora: Date;
 }) {
-  const quem = (email: string) => pessoas.find((p) => p.id === email);
+  const quem = (t: Trabalho) => pessoas.find((p) => p.id === t.responsaveis[0]);
 
   // Ancorar no início do dia: com `agora` ao segundo, as chaves mudavam a
   // cada tique e o React remontava as colunas — daí o piscar.
@@ -51,9 +51,10 @@ export default function CenaSemana({
       <div className={`pastilha ${tom}${t.bloqueada ? " parada" : ""}`}>
         <span
           className="pastilha-quem"
-          style={{ background: quem(t.responsavel) ? corDe(quem(t.responsavel)!) : undefined }}
+          style={{ background: quem(t) ? corDe(quem(t)!) : undefined }}
         >
-          {quem(t.responsavel)?.iniciais ?? "—"}
+          {quem(t)?.iniciais ?? "—"}
+          {t.responsaveis.length > 1 && <em className="mais-gente">+{t.responsaveis.length - 1}</em>}
         </span>
         <span className="pastilha-titulo">{t.titulo}</span>
         {t.tarefa && <span className="pastilha-frente">{nomeTarefa(tarefas, t.tarefa)}</span>}

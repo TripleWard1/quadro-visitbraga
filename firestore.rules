@@ -16,8 +16,12 @@ service cloud.firestore {
         && request.auth.token.email.matches('.*@cm-braga[.]pt');
     }
 
+    /* Trabalho partilhado: basta estar na lista de responsáveis.
+       O `in` cobre os registos antigos, que ainda têm `responsavel`. */
     function meu() {
-      return autenticado() && resource.data.responsavel == request.auth.token.email;
+      return autenticado()
+        && (request.auth.token.email in resource.data.responsaveis
+            || resource.data.responsavel == request.auth.token.email);
     }
 
     // O monitor lê sem sessão. É para isso que ele existe.
@@ -43,8 +47,30 @@ service cloud.firestore {
     match /trabalhos/{id} {
       allow read: if true;
       allow create: if autenticado()
-        && (request.resource.data.responsavel == request.auth.token.email || chefe());
+        && (request.auth.token.email in request.resource.data.responsaveis || chefe());
       allow update, delete: if meu() || chefe();
+    }
+
+    /* Comando da reunião: a parede lê, quem conduz escreve. */
+    match /controlo/{id} {
+      allow read: if true;
+      allow write: if autenticado();
+    }
+
+    /* Marcadores de reunião: definem o "desde a última vez". */
+    match /reunioes/{id} {
+      allow read: if true;
+      allow create: if autenticado();
+      allow update, delete: if false;
+    }
+
+    /* Histórico de mudanças de fase. Escreve-se, nunca se altera nem se apaga:
+       um histórico que se pode reescrever não é histórico. */
+    match /movimentos/{id} {
+      allow read: if true;
+      allow create: if autenticado()
+        && request.resource.data.quem == request.auth.token.email;
+      allow update, delete: if false;
     }
   }
 }

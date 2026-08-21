@@ -1,3 +1,4 @@
+import { ENDERECO_GESTAO } from "@/lib/config";
 import { FASES } from "@/lib/fases";
 import type { FonteDados } from "@/lib/tipos";
 
@@ -25,7 +26,11 @@ export default function Rodape({
         ))}
       </div>
 
-      <span className="rodape-concluidos">{concluidos} concluídos</span>
+      <span className="rodape-registar">
+        Regista o teu trabalho em <b>{ENDERECO_GESTAO}</b>
+      </span>
+
+      <span className="rodape-concluidos">{concluidos} fechados esta semana</span>
 
       <span className="fonte">
         {pausa ? "rotação em pausa" : fonte === "firestore" ? "em direto" : "sem ligação"}

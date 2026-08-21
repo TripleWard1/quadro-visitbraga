@@ -21,7 +21,8 @@ export function ultimaAtividade(trabalhos: Trabalho[], pessoas: Pessoa[], agora:
   const ultimo = recentes[0];
   if (!ultimo || !ehRecente(ultimo, agora)) return null;
 
-  const quem = pessoas.find((p) => p.id === ultimo.responsavel)?.nome.split(" ")[0] ?? "Alguém";
+  const quem =
+    pessoas.find((p) => p.id === ultimo.responsaveis[0])?.nome.split(" ")[0] ?? "Alguém";
   const segundos = Math.max(1, Math.round((agora.getTime() - ultimo.atualizadoEm!.getTime()) / 1000));
   const quando = segundos < 60 ? `há ${segundos} s` : `há ${Math.round(segundos / 60)} min`;
 
