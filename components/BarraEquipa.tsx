@@ -1,3 +1,4 @@
+import { corDe } from "@/lib/cores";
 import { CARREIRAS } from "@/lib/tipos";
 import type { Carreira, Pessoa } from "@/lib/tipos";
 
@@ -30,7 +31,12 @@ export default function BarraEquipa({
                   key={p.id}
                   title={`${p.nome} — ${p.cargo ?? ""}`}
                 >
-                  <span className="chip-cracha">{p.iniciais}</span>
+                  <span
+                    className="chip-cracha"
+                    style={ativo ? { background: corDe(p) } : undefined}
+                  >
+                    {p.iniciais}
+                  </span>
                   <span className="chip-nome">{p.nome}</span>
                 </span>
               );

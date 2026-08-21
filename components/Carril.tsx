@@ -14,6 +14,7 @@ export default function Carril({ fase, bloqueada }: { fase: FaseId; bloqueada?: 
           <span
             className={[
               "paragem",
+              `f${i}`,
               i < atual ? "feita" : "",
               i === atual ? "atual" : "",
               i === atual && bloqueada ? "bloq" : "",

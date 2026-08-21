@@ -106,7 +106,7 @@ export default function FormularioTrabalho({
           : "O que estás a fazer aparece no monitor assim que gravares."}
       </p>
 
-      <div className="g-campo">
+      <div className={"g-passo" + (titulo.trim().length > 2 ? " feito" : "")} data-passo="1">
         <label htmlFor="titulo">
           O que estás a fazer
           <span className="dica">uma frase curta, com o verbo à frente</span>
@@ -120,7 +120,7 @@ export default function FormularioTrabalho({
         />
       </div>
 
-      <div className="g-campo">
+      <div className={"g-passo" + (tarefa ? " feito" : "")} data-passo="2">
         <label htmlFor="tarefa">
           Frente de trabalho<span className="dica">opcional</span>
         </label>
@@ -144,7 +144,7 @@ export default function FormularioTrabalho({
         )}
       </div>
 
-      <div className="g-campo">
+      <div className={"g-passo" + (prazo || semPrazo ? " feito" : "")} data-passo="3">
         <label htmlFor="prazo">
           Para quando<span className="dica">é o que decide a cor no monitor</span>
         </label>
@@ -186,7 +186,7 @@ export default function FormularioTrabalho({
       </div>
 
       {souChefe && (
-        <div className="g-campo">
+        <div className="g-passo" data-passo="4">
           <label htmlFor="responsavel">Quem faz</label>
           <select
             id="responsavel"
@@ -207,7 +207,11 @@ export default function FormularioTrabalho({
       )}
 
       <div className="g-acoes">
-        <button className="botao principal" onClick={submeter} disabled={!pronto || aGravar}>
+        <button
+          className="botao principal botao-largo"
+          onClick={submeter}
+          disabled={!pronto || aGravar}
+        >
           {aGravar ? "A gravar…" : "Pôr no quadro"}
         </button>
         {!pronto && (

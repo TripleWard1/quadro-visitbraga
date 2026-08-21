@@ -32,3 +32,7 @@ export const MINIMO_PALAVRA_PASSE = 6;
 /** Email do chefe de divisão. Tem de coincidir com o que está escrito em
  *  firestore.rules — aqui manda no que se vê, lá manda no que se pode fazer. */
 export const EMAIL_CHEFE = "luis.ferreira@cm-braga.pt";
+
+/** Acima deste número de pessoas por cena, os cartões passam a linhas
+ *  compactas. É o que faz o quadro aguentar a divisão toda a registar. */
+export const LIMITE_DENSO = 6;

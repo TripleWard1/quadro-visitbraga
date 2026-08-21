@@ -1,22 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Atividade from "./Atividade";
 import BarraEquipa from "./BarraEquipa";
 import Cabecalho from "./Cabecalho";
 import CartaoPessoa from "./CartaoPessoa";
+import CenaFrentes from "./CenaFrentes";
+import CenaSemana from "./CenaSemana";
 import FaixaAlerta from "./FaixaAlerta";
 import FaixaEstado from "./FaixaEstado";
 import MarcaDeAgua from "./MarcaDeAgua";
-import PainelFrentes from "./PainelFrentes";
 import Rodape from "./Rodape";
-import { PESSOAS_POR_PAGINA, ROTACAO_MS } from "@/lib/config";
+import { LIMITE_DENSO, PESSOAS_POR_PAGINA, ROTACAO_MS } from "@/lib/config";
 import { mesmoDia, porPrazo } from "@/lib/datas";
 import { FASES, estaConcluida } from "@/lib/fases";
 import { useQuadro } from "@/lib/useQuadro";
-import type { FaseId } from "@/lib/tipos";
+import type { FaseId, Pessoa } from "@/lib/tipos";
 
-/** Um cartaz, não um painel de controlo. Cabe tudo num ecrã; só pagina se
- *  houver mais gente ocupada do que a grelha comporta. */
+type Cena =
+  | { id: string; nome: string; tipo: "equipa"; gente: Pessoa[] }
+  | { id: string; nome: string; tipo: "semana" }
+  | { id: string; nome: string; tipo: "frentes" };
+
+/** Um cartaz que respira. O cabeçalho, os números, o alerta e a equipa estão
+ *  sempre lá; só o miolo muda de cena — e cada cena responde a uma pergunta
+ *  diferente, em vez de mostrar o mesmo de outra maneira. */
 export default function Quadro() {
   const { trabalhos, pessoas, tarefas, fonte, erro } = useQuadro();
   const [agora, setAgora] = useState(() => new Date());
@@ -44,42 +52,57 @@ export default function Quadro() {
     return conta;
   }, [abertos]);
 
-  const ocupados = useMemo(
-    () => new Set(abertos.map((t) => t.responsavel)),
-    [abertos]
-  );
-
+  const ocupados = useMemo(() => new Set(abertos.map((t) => t.responsavel)), [abertos]);
   const comTrabalho = useMemo(
     () => pessoas.filter((p) => ocupados.has(p.id)),
     [pessoas, ocupados]
   );
 
-  /** Páginas só quando são precisas — e equilibradas quando o são. */
-  const paginas = useMemo(() => {
-    if (comTrabalho.length <= PESSOAS_POR_PAGINA) return [comTrabalho];
-    const quantas = Math.ceil(comTrabalho.length / PESSOAS_POR_PAGINA);
-    const porPagina = Math.ceil(comTrabalho.length / quantas);
-    const lista = [];
-    for (let i = 0; i < comTrabalho.length; i += porPagina) {
-      lista.push(comTrabalho.slice(i, i + porPagina));
+  const frentesComTrabalho = useMemo(
+    () => new Set(abertos.filter((t) => t.tarefa).map((t) => t.tarefa)).size,
+    [abertos]
+  );
+
+  /** Só entram em rotação as cenas que os dados justificam. */
+  const cenas: Cena[] = useMemo(() => {
+    const lista: Cena[] = [];
+
+    if (comTrabalho.length <= PESSOAS_POR_PAGINA) {
+      lista.push({ id: "equipa", nome: "Equipa", tipo: "equipa", gente: comTrabalho });
+    } else {
+      const quantas = Math.ceil(comTrabalho.length / PESSOAS_POR_PAGINA);
+      const porPagina = Math.ceil(comTrabalho.length / quantas);
+      for (let i = 0; i < comTrabalho.length; i += porPagina) {
+        lista.push({
+          id: `equipa-${i}`,
+          nome: "Equipa",
+          tipo: "equipa",
+          gente: comTrabalho.slice(i, i + porPagina),
+        });
+      }
     }
+
+    if (abertos.length > 0) lista.push({ id: "semana", nome: "A semana", tipo: "semana" });
+    if (frentesComTrabalho >= 2)
+      lista.push({ id: "frentes", nome: "Frentes de trabalho", tipo: "frentes" });
+
     return lista;
-  }, [comTrabalho]);
+  }, [comTrabalho, abertos.length, frentesComTrabalho]);
 
   useEffect(() => {
-    if (pausa || paginas.length < 2) return;
-    const t = setInterval(() => setPasso((p) => (p + 1) % paginas.length), ROTACAO_MS);
+    if (pausa || cenas.length < 2) return;
+    const t = setInterval(() => setPasso((p) => (p + 1) % cenas.length), ROTACAO_MS);
     return () => clearInterval(t);
-  }, [pausa, paginas.length]);
+  }, [pausa, cenas.length]);
 
   useEffect(() => {
-    if (passo >= paginas.length) setPasso(0);
-  }, [paginas.length, passo]);
+    if (passo >= cenas.length) setPasso(0);
+  }, [cenas.length, passo]);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (k === "v") setPasso((p) => (p + 1) % paginas.length);
+      if (k === "v") setPasso((p) => (p + 1) % cenas.length);
       if (k === "p") setPausa((x) => !x);
       if (k === "f") {
         if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -88,18 +111,21 @@ export default function Quadro() {
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, [paginas.length]);
+  }, [cenas.length]);
 
-  const pagina = paginas[passo] ?? paginas[0] ?? [];
-  /** Poucas pessoas ocupadas: cartões largos. Muitas: cartões estreitos.
-   *  A grelha adapta-se em vez de deixar três quartos do ecrã em branco. */
-  const colunas = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(pagina.length * 1.4))));
+  const cena = cenas[passo] ?? cenas[0];
+
+  /** Poucas pessoas: cartões largos. Muitas: cartões compactos, para caber
+   *  a divisão inteira sem letra ilegível. */
+  const gente = cena?.tipo === "equipa" ? cena.gente : [];
+  const denso = gente.length > LIMITE_DENSO;
+  const colunas = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(gente.length * 1.4))));
 
   return (
     <div className="quadro">
       <MarcaDeAgua />
 
-      {paginas.length > 1 && (
+      {cenas.length > 1 && (
         <div
           className="barra-tempo"
           key={passo}
@@ -120,49 +146,66 @@ export default function Quadro() {
         porFase={porFase}
       />
 
-      <FaixaAlerta
-        atrasados={atrasados}
-        parados={parados}
-        pessoas={pessoas}
-        agora={agora}
-      />
+      <FaixaAlerta atrasados={atrasados} parados={parados} pessoas={pessoas} agora={agora} />
 
       {erro && <p className="aviso">Sem ligação ao Firestore — {erro}</p>}
 
       <main className="corpo">
-        <div className="principal">
-          {pagina.length === 0 ? (
+        {cenas.length > 1 && (
+          <div className="cena-titulo">
+            <span className="cena-nome">{cena?.nome}</span>
+            <div className="pontos">
+              {cenas.map((c, i) => (
+                <span key={c.id} className={"ponto" + (i === passo ? " ativo" : "")} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="cena" key={cena?.id}>
+          {!cena || abertos.length === 0 ? (
             <div className="sem-nada">
               <img src="/sino-vermelho.png" alt="" />
               <p>Ninguém tem trabalho registado no quadro.</p>
             </div>
-          ) : (
-            <div className="grelha" style={{ ["--colunas" as any]: colunas }}>
-              {pagina.map((p) => (
+          ) : cena.tipo === "equipa" ? (
+            <div
+              className={"grelha" + (denso ? " densa" : "")}
+              style={{ ["--colunas" as any]: colunas }}
+            >
+              {cena.gente.map((p) => (
                 <CartaoPessoa
                   key={p.id}
                   pessoa={p}
                   trabalhos={trabalhos}
                   tarefas={tarefas}
                   agora={agora}
+                  denso={denso}
                 />
               ))}
             </div>
+          ) : cena.tipo === "semana" ? (
+            <CenaSemana
+              trabalhos={abertos}
+              pessoas={pessoas}
+              tarefas={tarefas}
+              agora={agora}
+            />
+          ) : (
+            <CenaFrentes tarefas={tarefas} trabalhos={trabalhos} pessoas={pessoas} />
           )}
         </div>
-
-        <PainelFrentes tarefas={tarefas} trabalhos={trabalhos} />
       </main>
 
       <BarraEquipa pessoas={pessoas} ocupados={ocupados} />
 
       <Rodape
-        paginas={paginas.length}
-        passo={passo}
         pausa={pausa}
         fonte={fonte}
         concluidos={trabalhos.filter((t) => estaConcluida(t.fase)).length}
       />
+
+      <Atividade trabalhos={trabalhos} pessoas={pessoas} agora={agora} />
     </div>
   );
 }
